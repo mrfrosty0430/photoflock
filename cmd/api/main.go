@@ -1,29 +1,39 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"net/http"
 
-	"github.com/danielgtaylor/huma/cli"
-	"github.com/mrfrosty0430/photoflock/api"
-	"github.com/mrfrosty0430/photoflock/internal/config"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
+
+	_ "github.com/danielgtaylor/huma/v2/formats/cbor"
 )
 
+// GreetingOutput represents the greeting operation response.
+type GreetingOutput struct {
+	Body struct {
+		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
+	}
+}
+
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Create a new router & API.
+	router := chi.NewMux()
+	api := humachi.New(router, huma.DefaultConfig("My API", "1.0.0"))
 
-	app := cli.New(
-		cli.WithTitle("PhotoFlock API"),
-		cli.WithDescription("Photo sharing service with face recognition"),
-		cli.WithVersion("1.0.0"),
-	)
+	// Register GET /greeting/{name} handler.
+	huma.Get(api, "/greeting/{name}", func(ctx context.Context, input *struct {
+		Name string `path:"name" maxLength:"30" example:"world" doc:"Name to greet"`
+	}) (*GreetingOutput, error) {
+		resp := &GreetingOutput{}
+		resp.Body.Message = fmt.Sprintf("Hello, %s!", input.Name)
+		return resp, nil
+	})
 
-	api.RegisterRoutes(app)
-
-	log.Printf("Server starting on %s", cfg.Server.Address)
-	if err := app.Listen(cfg.Server.Address); err != nil {
-		log.Fatal(err)
-	}
+	// Start the server!
+	log.Fatal(http.ListenAndServe(":9000", router))
 }
